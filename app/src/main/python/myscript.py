@@ -3,6 +3,7 @@ import numpy as np
 from numpy import mean, var, fft, diff, sign, correlate
 from scipy.stats import kurtosis, skew
 from os.path import dirname, join
+from com.chaquo.python import Python
 import csv
 import math
 from sklearn.preprocessing import MinMaxScaler
@@ -33,11 +34,12 @@ def main():
     count_row = 0
     count_errors = 0
 
-
-    stringPathFile = join(dirname(__file__), "final_test2.csv")
+    files_dir = str(Python.getPlatform().getApplication().getFilesDir())
+    #stringPathFile = join(dirname(__file__), 'OSC-Python-Recording.csv')
+    stringPathFile = join(dirname(files_dir), 'OSC-Python-Recording.csv')
     list = [[]]#[[1.0,2.0,3.0,4.0,5.0,6.0], [1.0,2.0,3.0,4.0,5.0,6.0]]
 
-    df = pd.read_csv(stringPathFile, usecols = clm)#, sep=",", header=1)#, chunksize=1, error_bad_lines=False)
+    df = pd.read_csv(stringPathFile, header=1)#, usecols = clm)#, sep=",", header=1)#, chunksize=1, error_bad_lines=False)
     #for c,r in df.iterrows():
 
     row = []

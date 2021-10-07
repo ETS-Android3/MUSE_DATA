@@ -27,6 +27,7 @@ android {
 
         python {
             pip {
+                install "python-osc"
                 install "scikit-learn"
                 install "pandas"
                 install "numpy"

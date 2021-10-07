@@ -5,6 +5,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 
 import com.chaquo.python.PyObject;
@@ -18,10 +20,13 @@ import weka.classifiers.Classifier;
 import weka.core.Attribute;
 import weka.core.DenseInstance;
 import weka.core.Instances;
+import weka.core.pmml.jaxbbindings.False;
+import weka.core.pmml.jaxbbindings.True;
 
 public class MainActivity extends AppCompatActivity {
 
     TextView textView;
+    Boolean start = false;
 
     String[] columns = {"Accelerometer-X-max","Accelerometer-X-min","Accelerometer-X-avg","Accelerometer-X-var","Accelerometer-X-skew","Accelerometer-X-kurt",
             "Accelerometer-X-aut1","Accelerometer-X-aut2","Accelerometer-X-aut3","Accelerometer-X-aut4","Accelerometer-X-aut5","Accelerometer-X-aut6",
@@ -51,26 +56,50 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         textView = (TextView)findViewById(R.id.textView);
+        Button btn = findViewById(R.id.stop);
 
-        if (! Python.isStarted()) {
-            Python.start(new AndroidPlatform(getApplicationContext()));//context));
-        }
 
-        Python py = Python.getInstance();
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                start = true;
+            }
+        });
 
-        PyObject pyobj = py.getModule("myscript");
 
-        PyObject obj = pyobj.callAttr("main");
 
-        float[][] lisst = obj.toJava(float[][].class);
-        //List<PyObject> newlist = lisst.get(0).asList();
-        //ArrayList<PyObject> mid = (ArrayList<PyObject>) lisst;
-        float[] result = new float[200];
-        String stringL = "";
-        //int index = 0;
-        //for (PyObject l : lisst) {
-        //int size = lisst.size();
-//        for(int index = 0; index< size; index++) {
+
+         while (!start) {
+             if (!Python.isStarted()) {
+                 Python.start(new AndroidPlatform(getApplicationContext()));//context));
+             }
+
+
+             Python py = Python.getInstance();
+
+             PyObject osc_server = py.getModule("OSCserver");//.get("__name__");//.call();
+
+             //osc_server.callAttr("muse_handler");
+             //.get("__main__");
+             //PyObject osc = osc_server.callAttr("main");
+
+
+             PyObject pyobj = py.getModule("myscript");
+
+
+             osc_server.callAttr("main");
+
+             PyObject obj = pyobj.callAttr("main");
+
+             float[][] lisst = obj.toJava(float[][].class);
+             //List<PyObject> newlist = lisst.get(0).asList();
+             //ArrayList<PyObject> mid = (ArrayList<PyObject>) lisst;
+             float[] result = new float[200];
+             String stringL = "";
+             //int index = 0;
+             //for (PyObject l : lisst) {
+             //int size = lisst.size();
+//       for(int index = 0; index< size; index++) {
 //            stringL = (lisst.get(index)).toString();
 //            stringL.replace("[", "");
 //            stringL.replace("]", "");
@@ -80,98 +109,98 @@ public class MainActivity extends AppCompatActivity {
 //        }
 
 
-
-        //Weka
-        // we need those for creating new instances later
+                //Weka
+                // we need those for creating new instances later
 //        final Attribute attributeAccX = new Attribute("Accelerometer_X");
 //        final Attribute attributeAccY = new Attribute("Accelerometer_Y");
 //        final Attribute attributeAccZ = new Attribute("Accelerometer_Z");
 //        final Attribute attributeGyroX = new Attribute("Gyro_X");
 //        final Attribute attributeGyroY = new Attribute("Gyro_Y");
 //        final Attribute attributeGyroZ = new Attribute("Gyro_Z");
-        final ArrayList<Attribute> attribute = new ArrayList<Attribute>();
-        for (int i=0; i<156; i++) {
-            attribute.add(new Attribute(columns[i]));
-        }
-        final List<String> classes = new ArrayList<String>() {
-            {
-                add("-1");
-                add("0");
-                add("1");
-                add("2");
-                add("3");
-                //add("Iris-setosa");
-                //add("Iris-versicolor");
-                //add("Iris-virginica");
-            }
-        };
+             final ArrayList<Attribute> attribute = new ArrayList<Attribute>();
+             for (int i = 0; i < 156; i++) {
+                 attribute.add(new Attribute(columns[i]));
+             }
+             final List<String> classes = new ArrayList<String>() {
+                 {
+                     add("-1");
+                     add("0");
+                     add("1");
+                     add("2");
+                     add("3");
+                        //add("Iris-setosa");
+                        //add("Iris-versicolor");
+                        //add("Iris-virginica");
+                 }
+             };
 
-        // Instances(...) requires ArrayList<> instead of List<>...
-        ArrayList<Attribute> attributeList = new ArrayList<Attribute>(2) {
-            {
-                for (int i=0; i<attribute.size(); i++)
-                    add(attribute.get(i));
-                //add(attributeAccX);
-                Attribute attributeClass = new Attribute("@@class@@", classes);
-                add(attributeClass);
-            }
-        };
-
-
-        // unpredicted data sets (reference to sample structure for new instances)
-        Instances dataUnpredicted = new Instances("TestInstances",
-                attributeList, 1);
-        // last feature is target variable
-        dataUnpredicted.setClassIndex(dataUnpredicted.numAttributes() - 1);
-
-        // create new instance: this one should fall into the setosa domain
-        DenseInstance newInstance = new DenseInstance(dataUnpredicted.numAttributes()) {
-            {
-                for(int i=0; i<attribute.size(); i++)
-                    setValue(attribute.get(i), lisst[0][i]);
-                //setValue(attributeAccX, result[0]);
+                // Instances(...) requires ArrayList<> instead of List<>...
+             ArrayList<Attribute> attributeList = new ArrayList<Attribute>(2) {
+                 {
+                     for (int i = 0; i < attribute.size(); i++)
+                         add(attribute.get(i));
+                        //add(attributeAccX);
+                     Attribute attributeClass = new Attribute("@@class@@", classes);
+                     add(attributeClass);
+                 }
+             };
 
 
-            }
-        };
-        // create new instance: this one should fall into the virginica domain
+                // unpredicted data sets (reference to sample structure for new instances)
+             Instances dataUnpredicted = new Instances("TestInstances",
+                     attributeList, 1);
+                // last feature is target variable
+             dataUnpredicted.setClassIndex(dataUnpredicted.numAttributes() - 1);
+
+                // create new instance: this one should fall into the setosa domain
+             DenseInstance newInstance = new DenseInstance(dataUnpredicted.numAttributes()) {
+                 {
+                     for (int i = 0; i < attribute.size(); i++)
+                         setValue(attribute.get(i), lisst[0][i]);
+                        //setValue(attributeAccX, result[0]);
 
 
-        // instance to use in prediction
-        //DenseInstance newInstance = newInstance;
-        // reference to dataset
-        newInstance.setDataset(dataUnpredicted);
+                 }
+             };
+                // create new instance: this one should fall into the virginica domain
 
 
-
-        // import ready trained model
-        Classifier cls = null;
-        try {
-            //cls = (Classifier) weka.core.SerializationHelper
-            //        .read("../assets/RandomForest.model");
-            cls = (Classifier) weka.core.SerializationHelper
-                    .read(getAssets().open("RandomForest.model"));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        if (cls == null)
-            return;
-
-        // predict new sample
-        try {
-            double finalResult = cls.classifyInstance(newInstance);
-            textView.setText(String.valueOf(finalResult));
-            //System.out.println("Index of predicted class label: " + finalResult + ", which corresponds to class: " + classes.get(new Double(finalResult).intValue()));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+                // instance to use in prediction
+                //DenseInstance newInstance = newInstance;
+                // reference to dataset
+             newInstance.setDataset(dataUnpredicted);
 
 
-        //textView.setText(String.valueOf(lisst[0][0]));
-        //textView.setText(obj.toString());
-        Log.d(" ... PyObj ", String.valueOf(obj));
+                // import ready trained model
+             Classifier cls = null;
+             try {
+                    //cls = (Classifier) weka.core.SerializationHelper
+                    //        .read("../assets/RandomForest.model");
+                 cls = (Classifier) weka.core.SerializationHelper
+                         .read(getAssets().open("RandomForest.model"));
+             } catch (Exception e) {
+                 e.printStackTrace();
+             }
+             if (cls == null)
+                 return;
 
-        //textView.setText(obj.toString());
+                // predict new sample
+             try {
+                 double finalResult = cls.classifyInstance(newInstance);
+                 textView.setText(String.valueOf(finalResult));
+                 Log.d(" ... Result ", String.valueOf(finalResult));
+                    //System.out.println("Index of predicted class label: " + finalResult + ", which corresponds to class: " + classes.get(new Double(finalResult).intValue()));
+             } catch (Exception e) {
+                 e.printStackTrace();
+             }
+
+
+                //textView.setText(String.valueOf(lisst[0][0]));
+                //textView.setText(obj.toString());
+                //Log.d(" ... PyObj ", String.valueOf(obj));
+
+                //textView.setText(obj.toString());
+         }
 
     }
 }
