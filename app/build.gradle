@@ -22,7 +22,7 @@ android {
         }
 
         python {
-            buildPython "C:/Users/pc/AppData/Local/Programs/Python/Python38/python.exe"
+            buildPython "C:/Users/Gianmarco/AppData/Local/Programs/Python/Python38/python.exe"
         }
 
         python {

@@ -5,7 +5,9 @@ from scipy.stats import kurtosis, skew
 from os.path import dirname, join
 from com.chaquo.python import Python
 import csv
+import os
 import math
+import time
 from sklearn.preprocessing import MinMaxScaler
 
 stringSens = "Accelerometer Gyro".split()
@@ -35,38 +37,21 @@ def main():
     count_errors = 0
 
     files_dir = str(Python.getPlatform().getApplication().getFilesDir())
-    #stringPathFile = join(dirname(__file__), 'OSC-Python-Recording.csv')
     stringPathFile = join(dirname(files_dir), 'OSC-Python-Recording.csv')
-    list = [[]]#[[1.0,2.0,3.0,4.0,5.0,6.0], [1.0,2.0,3.0,4.0,5.0,6.0]]
+    list = [[]]
 
-    df = pd.read_csv(stringPathFile, header=1)#, usecols = clm)#, sep=",", header=1)#, chunksize=1, error_bad_lines=False)
-    #for c,r in df.iterrows():
+
+    try :
+        df = pd.read_csv(stringPathFile, header=1)
+    except Exception :
+        return None
 
     row = []
-        #for c in range(26, 32):
-        #if c in clm:
-        #try:
-        #print(r)
-        #row.append(r)#.astype(float))#.iloc[:, i]).astype(float).name)
-
-        #except AttributeError:
-        #    count_errors += 1
-        #    print(count_errors, ' Error!')
-        #    continue
-
-        #if len(clm) == len(row):
-            #list.append(row)   #return list(row)
-
-
-        #else:
-        #   print("Error")
-
-    #return df.iloc[109].values
 
     for i in range(0, df.shape[1]):
         aux = []
         # Valore massimo
-        aux.append(max(df.iloc[:, i]))  # mean(X.iloc[:, i]
+        aux.append(max(df.iloc[:, i]))
 
         # Valore minimo
         aux.append(max(df.iloc[:, i]))
@@ -84,7 +69,6 @@ def main():
         aux.append(kurtosis(df.iloc[:, i]))
 
         # Autocorrelazione
-        # acf = correlate(df[i], df[i], 'full')[-len(X[0]):]
         acf = correlate(df.iloc[:, i], df.iloc[:, i], 'full')[-len(df.iloc[:, 0]):]
         aut = []
         for j in range(acf.size):
@@ -109,10 +93,8 @@ def main():
 
         aux.extend(peak[:5])
         aux.extend(signal_freq[:5])
-        # print("Len_peak ", len(peak[:5]), " Len_sig", len(signal_freq[:5]))
         row.extend(aux)
 
-    print("lll:", len(row))
 
     #Normalization
 
@@ -140,59 +122,36 @@ def main():
         'Gyro-Z-aut3','Gyro-Z-aut4','Gyro-Z-aut5','Gyro-Z-aut6','Gyro-Z-aut7','Gyro-Z-aut8','Gyro-Z-aut9','Gyro-Z-aut10','Gyro-Z-pks1','Gyro-Z-pks2',
         'Gyro-Z-pks3','Gyro-Z-pks4','Gyro-Z-pks5','Gyro-Z-fpk1','Gyro-Z-fpk2','Gyro-Z-fpk3','Gyro-Z-fpk4','Gyro-Z-fpk5']
 
-        # Creazione matrice contenente i dati in un unico formato
+    # Creazione matrice contenente i dati in un unico formato
     matrix1 = []
     j = 0
     for i in range(len(clm2)):
         con = 0
         if "pks" not in clm2[i]:
             values = row[i]
-            #j = j+1
         else:
             values = absolute_value_complex_arr(row[i])
-            #j = j+1
-        #values = values.reshape((len(values), 1))
         matrix1.append(values)
 
-    #matrix2 = []
-    #for i in range(0, len(matrix1[0])):
-    #rowStamp = []
-    #for k in range(0, len(matrix1)):
-    #    app = matrix1[k]
-    #    rowStamp.extend(app)
-    #    matrix2.append(rowStamp)
     matrix2 = matrix1
-
-
     for k in range(0, len(matrix2)):
-        #for i in range(0, len(matrix2[0])):
         if isinstance(matrix2[k], str):
             matrix2[k] = float(matrix2[k])
 
-       # Normalizzazione dei dati
+    # Normalizzazione dei dati
     scaler = MinMaxScaler(feature_range=(0, 1))
     matrix2 = np.reshape(matrix2, [1,-1])
-    #scaler = scaler.fit(matrix2)
-
     matrixFin = scaler.fit_transform(matrix2.T)
-    #print(matrix2)
-    #matrix2 = np.reshape(matrix2, [1,-1])
-
-    #print(matrix2)
-
     for i in range(0, len(matrixFin)):
-        #for k in range(0, len(matrixFin[0])):
         matrixFin[i] = matrixFin[i] * 1
 
-    # Creazione del dataset Normalizzato
-    #print(matrixFin)
+    # Dataset Normalizzato
     return matrixFin.T
 
 
 # Funzione per il calcolo del valore assoluto dei numeri complessi
 def absolute_value_complex_arr(parameter):
     auxC = []
-    #for j in parameter:
     j = str(parameter)
     j = j.replace('(', '')
     j = j.replace(')', '')
@@ -206,5 +165,4 @@ def absolute_value_complex_arr(parameter):
     for j in range(0, len(real_part)):
         res = math.sqrt(pow(real_part[j], 2) + pow(imagin_part[j], 2))
         result.extend([res])
-
     return np.asarray(result)

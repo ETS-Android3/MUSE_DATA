@@ -2,17 +2,23 @@ package com.example.musedata;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.content.res.AssetManager;
+import android.annotation.SuppressLint;
+import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
+import android.text.format.Formatter;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
 
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,13 +26,21 @@ import weka.classifiers.Classifier;
 import weka.core.Attribute;
 import weka.core.DenseInstance;
 import weka.core.Instances;
-import weka.core.pmml.jaxbbindings.False;
-import weka.core.pmml.jaxbbindings.True;
+
+import static android.os.SystemClock.sleep;
 
 public class MainActivity extends AppCompatActivity {
 
-    TextView textView;
+    Button direction;
     Boolean start = false;
+    double finalResult = 0;
+    float [][] lisst = null;
+    // ArrayList<String> array = new ArrayList<>();         Test set
+    String ipAddress;
+    ArrayList<Attribute> attribute = null;
+    Instances dataUnpredicted = null;
+
+    Classifier cls;
 
     String[] columns = {"Accelerometer-X-max","Accelerometer-X-min","Accelerometer-X-avg","Accelerometer-X-var","Accelerometer-X-skew","Accelerometer-X-kurt",
             "Accelerometer-X-aut1","Accelerometer-X-aut2","Accelerometer-X-aut3","Accelerometer-X-aut4","Accelerometer-X-aut5","Accelerometer-X-aut6",
@@ -50,157 +64,182 @@ public class MainActivity extends AppCompatActivity {
             "Gyro-Z-aut3","Gyro-Z-aut4","Gyro-Z-aut5","Gyro-Z-aut6","Gyro-Z-aut7","Gyro-Z-aut8","Gyro-Z-aut9","Gyro-Z-aut10","Gyro-Z-pks1","Gyro-Z-pks2",
             "Gyro-Z-pks3","Gyro-Z-pks4","Gyro-Z-pks5","Gyro-Z-fpk1","Gyro-Z-fpk2","Gyro-Z-fpk3","Gyro-Z-fpk4","Gyro-Z-fpk5"};
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        textView = (TextView)findViewById(R.id.textView);
+        direction = (Button)findViewById(R.id.direction);
         Button btn = findViewById(R.id.stop);
 
+        WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+        ipAddress = Formatter.formatIpAddress(wifiManager.getConnectionInfo().getIpAddress());
 
-        btn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                start = true;
+        attribute = new ArrayList<Attribute>();
+        for (int i = 0; i < 156; i++) {
+            attribute.add(new Attribute(columns[i]));
+        }
+        final List<String> classes = new ArrayList<String>() {
+            {
+                add("-1");
+                add("0");
+                add("1");
+                add("2");
+                add("3");
             }
+        };
+
+        ArrayList<Attribute> attributeList = new ArrayList<Attribute>(2) {
+            {
+                for (int i = 0; i < attribute.size(); i++)
+                    add(attribute.get(i));
+                Attribute attributeClass = new Attribute("@@class@@", classes);
+                add(attributeClass);
+            }
+        };
+
+
+        dataUnpredicted = new Instances("TestInstances",
+                attributeList, 1);
+        dataUnpredicted.setClassIndex(dataUnpredicted.numAttributes() - 1);
+
+        try {
+            cls = (Classifier) weka.core.SerializationHelper
+                    .read(getAssets().open("RandomForest.model"));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        if (cls == null)
+            return;
+
+        btn.setOnClickListener( v -> {
+            start = !start;
+            int i = 0;
+            while (i<10) {
+                AsyncTaskExample asyncT = new AsyncTaskExample();
+                asyncT.execute();
+                i++;
+            }
+            sleep(45000);
+            // Save(array);     Function used to extract test set
+
         });
 
 
+    }
 
 
-         while (!start) {
-             if (!Python.isStarted()) {
-                 Python.start(new AndroidPlatform(getApplicationContext()));//context));
-             }
+    @SuppressLint("StaticFieldLeak")
+    private class AsyncTaskExample extends AsyncTask<Void, Void, String> {
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            if (!Python.isStarted()) {
+                Python.start(new AndroidPlatform(getApplicationContext()));
+            }
+        }
+        @Override
+        protected String doInBackground(Void... voids) {
+            Python py = Python.getInstance();
+            PyObject osc_server = py.getModule("OSCserver");
+            osc_server.callAttr("main", ipAddress);
+            sleep(500);
+            PyObject pyobj = py.getModule("myscript");
+            PyObject obj = pyobj.callAttr("main");
+            if (obj==null)
+                lisst = null;
+            else
+                lisst = obj.toJava(float[][].class);
+
+            if (lisst != null ) {
+                DenseInstance newInstance = new DenseInstance(dataUnpredicted.numAttributes()) {
+                    {
+                        for (int i = 0; i < attribute.size(); i++)
+                            setValue(attribute.get(i), lisst[0][i]);
+                    }
+                };
+
+                lisst = null;
+                newInstance.setDataset(dataUnpredicted);
+
+                try {
+                    finalResult = cls.classifyInstance(newInstance);
+                    Log.d("NEW INSTANCE : ", String.valueOf(newInstance));
+                    //array.add(String.valueOf(newInstance)+",3");                  Add desired class to the test set
+                    Log.d("Result ---> ", dataUnpredicted.classAttribute().value((int) finalResult));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            return (dataUnpredicted.classAttribute().value((int) finalResult));
+        }
+        @SuppressLint("SetTextI18n")
+        @Override
+        protected void onPostExecute(String result) {
+            super.onPostExecute(result);
+            if(result!=null) {
+                if (result.equals("-1"))
+                    direction.setBackgroundResource(R.drawable.down);
+                else if (result.equals("0"))
+                    direction.setBackgroundResource(R.drawable.stop);
+                else if (result.equals("1"))
+                    direction.setBackgroundResource(R.drawable.up);
+                else if (result.equals("2"))
+                    direction.setBackgroundResource(R.drawable.turn_left);
+                else if (result.equals(("3")))
+                    direction.setBackgroundResource(R.drawable.turn_right);
+            }else {
+                direction.setText("Error");
+            }
+        }
+    }
 
 
-             Python py = Python.getInstance();
-
-             PyObject osc_server = py.getModule("OSCserver");//.get("__name__");//.call();
-
-             //osc_server.callAttr("muse_handler");
-             //.get("__main__");
-             //PyObject osc = osc_server.callAttr("main");
-
-
-             PyObject pyobj = py.getModule("myscript");
-
-
-             osc_server.callAttr("main");
-
-             PyObject obj = pyobj.callAttr("main");
-
-             float[][] lisst = obj.toJava(float[][].class);
-             //List<PyObject> newlist = lisst.get(0).asList();
-             //ArrayList<PyObject> mid = (ArrayList<PyObject>) lisst;
-             float[] result = new float[200];
-             String stringL = "";
-             //int index = 0;
-             //for (PyObject l : lisst) {
-             //int size = lisst.size();
-//       for(int index = 0; index< size; index++) {
-//            stringL = (lisst.get(index)).toString();
-//            stringL.replace("[", "");
-//            stringL.replace("]", "");
-//            Log.d(" ... l : ", String.valueOf(stringL));
-//            result[index] = Float.parseFloat(stringL);
-//            //index += 1;
-//        }
-
-
-                //Weka
-                // we need those for creating new instances later
-//        final Attribute attributeAccX = new Attribute("Accelerometer_X");
-//        final Attribute attributeAccY = new Attribute("Accelerometer_Y");
-//        final Attribute attributeAccZ = new Attribute("Accelerometer_Z");
-//        final Attribute attributeGyroX = new Attribute("Gyro_X");
-//        final Attribute attributeGyroY = new Attribute("Gyro_Y");
-//        final Attribute attributeGyroZ = new Attribute("Gyro_Z");
-             final ArrayList<Attribute> attribute = new ArrayList<Attribute>();
-             for (int i = 0; i < 156; i++) {
-                 attribute.add(new Attribute(columns[i]));
-             }
-             final List<String> classes = new ArrayList<String>() {
-                 {
-                     add("-1");
-                     add("0");
-                     add("1");
-                     add("2");
-                     add("3");
-                        //add("Iris-setosa");
-                        //add("Iris-versicolor");
-                        //add("Iris-virginica");
-                 }
-             };
-
-                // Instances(...) requires ArrayList<> instead of List<>...
-             ArrayList<Attribute> attributeList = new ArrayList<Attribute>(2) {
-                 {
-                     for (int i = 0; i < attribute.size(); i++)
-                         add(attribute.get(i));
-                        //add(attributeAccX);
-                     Attribute attributeClass = new Attribute("@@class@@", classes);
-                     add(attributeClass);
-                 }
-             };
-
-
-                // unpredicted data sets (reference to sample structure for new instances)
-             Instances dataUnpredicted = new Instances("TestInstances",
-                     attributeList, 1);
-                // last feature is target variable
-             dataUnpredicted.setClassIndex(dataUnpredicted.numAttributes() - 1);
-
-                // create new instance: this one should fall into the setosa domain
-             DenseInstance newInstance = new DenseInstance(dataUnpredicted.numAttributes()) {
-                 {
-                     for (int i = 0; i < attribute.size(); i++)
-                         setValue(attribute.get(i), lisst[0][i]);
-                        //setValue(attributeAccX, result[0]);
-
-
-                 }
-             };
-                // create new instance: this one should fall into the virginica domain
-
-
-                // instance to use in prediction
-                //DenseInstance newInstance = newInstance;
-                // reference to dataset
-             newInstance.setDataset(dataUnpredicted);
-
-
-                // import ready trained model
-             Classifier cls = null;
-             try {
-                    //cls = (Classifier) weka.core.SerializationHelper
-                    //        .read("../assets/RandomForest.model");
-                 cls = (Classifier) weka.core.SerializationHelper
-                         .read(getAssets().open("RandomForest.model"));
-             } catch (Exception e) {
-                 e.printStackTrace();
-             }
-             if (cls == null)
-                 return;
-
-                // predict new sample
-             try {
-                 double finalResult = cls.classifyInstance(newInstance);
-                 textView.setText(String.valueOf(finalResult));
-                 Log.d(" ... Result ", String.valueOf(finalResult));
-                    //System.out.println("Index of predicted class label: " + finalResult + ", which corresponds to class: " + classes.get(new Double(finalResult).intValue()));
-             } catch (Exception e) {
-                 e.printStackTrace();
-             }
-
-
-                //textView.setText(String.valueOf(lisst[0][0]));
-                //textView.setText(obj.toString());
-                //Log.d(" ... PyObj ", String.valueOf(obj));
-
-                //textView.setText(obj.toString());
-         }
-
+    // Funzione per la scrittura su file
+    public void Save(ArrayList<String> data)
+    {
+        String state = Environment.getExternalStorageState();
+        if (!Environment.MEDIA_MOUNTED.equals(state)) {
+            //If it isn't mounted - we can't write into it.
+            return;
+        }
+        //Create a new file that points to the root directory, with the given name:
+        File file = new File(getExternalFilesDir(null) , "test.csv");
+        int n=1;
+        while (file.exists()) {
+            file = new File(getExternalFilesDir(null), "test"+n+".csv");
+            n++;
+        }
+        FileOutputStream fos = null;
+        try
+        {
+            fos = new FileOutputStream(file, true);
+        }
+        catch (FileNotFoundException e) {e.printStackTrace();}
+        try
+        {
+            try
+            {
+                for (int i = 0; i<data.size(); i++)
+                {
+                    fos.write(data.get(i).getBytes());
+                    if (i < data.size()-1)
+                    {
+                        fos.write("\n".getBytes());
+                    }
+                }
+                fos.write("\n".getBytes());
+            }
+            catch (IOException e) {e.printStackTrace();}
+        }
+        finally
+        {
+            try
+            {
+                fos.close();
+            }
+            catch (IOException e) {e.printStackTrace();}
+        }
     }
 }
